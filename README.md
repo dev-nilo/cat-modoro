@@ -1,124 +1,140 @@
-# Pomodoro Pet
+# Pomodoro Cat
 
-Timer Pomodoro em **Next.js + TypeScript** com um monstrengo fofo que **cansa enquanto você trabalha** e **se recupera nas pausas**. Quanto mais cansado, mais ele **vira um demoniozinho**: a cor, os chifres, os olhos e a boca vão mudando de fofos para demoníacos — um Tamagotchi de produtividade em pixel art.
+A Pomodoro timer with a pixel-art cat that **gets tired while you work** and **recharges when you take breaks**. Adopt your own cat, pick its coat, eyes and accessory, and look after each other.
 
-A troca de fase é **manual**: ao terminar o foco, o monstrengo fica *aguardando* você marcar o início da pausa. É nesse momento que entra a animação de alegria — recompensa visual por respeitar o descanso.
+Built with Next.js, React and TypeScript. No sprite images: every frame of the cat is drawn from palette-indexed pixel grids in code.
 
 ---
 
-## Rodando
+## Features
+
+- **Your cat, your way.** On the first visit you adopt a cat: 6 coats (orange tabby, black, white, gray tabby, tuxedo, calico), 4 eye colors (including odd eyes), 5 accessories and a name. You can change any of it later in Settings.
+- **A cat that reacts to your day.** It focuses in a loaf while you work, gets sleepy, then grumpy as energy drains, and naps on your breaks. If you push it all the way to empty, it turns into something else.
+- **Manual phase changes.** When a session ends, the cat waits for you. Starting a break is a conscious click, and the cat thanks you with a big stretch.
+- **Pomodoro essentials.** Configurable focus / short break / long break lengths, and a long break every N sessions.
+- **Floating mode.** "Pop out" opens an always-on-top mini window through Document Picture-in-Picture, so the cat can sit on top of your work (Chrome and Edge).
+- **It remembers.** Everything is saved in `localStorage`. The timer keeps running while the tab is closed, and each day starts fresh at midnight.
+- **Heads-up.** An 8-bit meow plays when a session ends. Browser notifications are opt-in.
+- **Accessible and calm.** Keyboard shortcuts, real HTML controls, light and dark themes that follow the system, and `prefers-reduced-motion` support.
+
+## Getting started
 
 ```bash
 npm install
-npm run dev          # http://localhost:3000
+npm run dev       # http://localhost:3000
+npm test          # Vitest
+npm run build     # static production build (deploys as-is to Vercel or any static host)
 ```
 
-- `http://localhost:3000/?demo` — ciclos curtos (6 s de foco / 4 s de pausa) para ver o fluxo completo em segundos.
-- `npm run build && npm start` — build de produção (a página é estática).
+Requires Node 20+.
 
-Requisitos: Node 20+.
+## Controls
 
-## Controles
-
-| Ação | Entrada |
-|------|---------|
-| Revelar o painel | Passar o mouse sobre o monstrengo (no toque: tocar uma vez) |
-| Botão de ação (iniciar / pausar / começar fase) | Botão principal, clique no monstrengo ou `Espaço` / `Enter` |
-| Pular fase | Botão `pular` ou `S` |
-| Novo ciclo (reset) | Botão `reset`, clique direito ou `R` |
-
-O título da aba mostra o tempo restante e a fase, então dá para acompanhar o timer de outra aba.
+| Action | Input |
+|---|---|
+| Start / pause / begin the next session | Main button, `Space` or `Enter` |
+| Skip the current session | Skip button or `S` |
+| Reset today's progress | Reset button or `R` (asks for confirmation) |
+| Pet the cat | Click the cat or press `P` |
+| Shortcut help | `?` |
 
 ---
 
-## Como funciona
+## How it works
 
-### Ciclo de fases
-
-```
-FOCO --(tempo acaba)--> aguardando --(usuário marca a pausa)--> PAUSA (comemora)
-  ^                                                                  |
-  +--------------- aguardando <--(tempo acaba)-----------------------+
-```
-
-| Fase | Duração padrão | Energia | Aparência |
-|------|----------------|---------|-----------|
-| FOCO | 25 min | cai | começa concentrado e vai ficando cansado |
-| PAUSA | 5 min | sobe | cansado, dorme e acorda recuperado |
-
-- `tick()` **nunca** troca de fase sozinho — só sinaliza o fim com um evento (`focus_done` / `break_done`).
-- `awaiting = true` → o tempo acabou; `running` vira `false` e `remaining` vai a `0`.
-- `advance()` / `toggle()` a partir de `awaiting` inicia a próxima fase (`break_started` / `focus_started`).
-
-### Modelo de energia
+### Session cycle
 
 ```
-Durante FOCO:   E = clamp(E - focusCost    / focusDuration * dt, 0, 100)
-Durante PAUSA:  E = clamp(E + breakRestore / breakDuration * dt, 0, 100)
+FOCUS --time's up--> waiting --you start the break--> BREAK (stretch!)
+  ^                                                      |
+  +------------- waiting <--------time's up--------------+
 ```
 
-Com os padrões (`focusCost = 45`, `breakRestore = 45`): `E=85 --FOCO--> 40 --PAUSA--> 85`. Com `breakRestore < focusCost` o cansaço acumula ao longo do dia.
+Every `longBreakEvery` completed focus sessions, the break is a long one.
 
-### Humor
+| Setting | Default | Range |
+|---|---|---|
+| Focus | 25 min | 1–90 |
+| Short break | 5 min | 1–30 |
+| Long break | 15 min | 5–60 |
+| Long break every | 4 sessions | 2–8 |
 
-| Condição | Humor |
-|----------|-------|
-| energia ≤ 20 | `exhausted` |
-| energia ≤ 45 | `tired` |
-| foco e energia > 45 | `focus` |
-| pausa e energia ≤ 75 | `ok` |
-| pausa e energia > 75 | `happy` |
+### Energy
 
-A camada visual acrescenta `resting` (pausa com energia < 70: olhos fechados e `zZz`) e prioriza a animação de alegria. A "demonização" é contínua via `menace()` (0 = fofo, 1 = demônio), que interpola cor, chifres, olhos, boca e cauda.
+Energy runs from 0 to 100. It is defined per full session, so changing the durations never unbalances it:
+
+- a full **focus** session costs 45,
+- a full **short break** gives 45 back,
+- a full **long break** always brings the cat back to 100.
+
+The cat starts the day at 85.
+
+### Cat states
+
+| State | When |
+|---|---|
+| `idle` | Not started or paused, with energy > 45 |
+| `focus` | Focus running, energy > 45 |
+| `tired` | Energy ≤ 45 |
+| `grumpy` | Energy ≤ 20 |
+| `possessed` | Energy ≤ 5 (easter egg) |
+| `awaiting` | A session ended and the cat is waiting for you |
+| `stretch` | Right after you start a break |
+| `sleeping` | On a break with energy < 70 |
+| `happy` | On a break with energy ≥ 70, or while being petted |
 
 ---
 
-## Arquitetura
+## Architecture
 
-| Arquivo | Responsabilidade |
-|---------|------------------|
-| [src/lib/pet.ts](src/lib/pet.ts) | Lógica pura (`PomodoroPet`): máquina de estados, energia, humor, `formatTime`. Sem DOM. |
-| [src/lib/view.ts](src/lib/view.ts) | `PetView`: expressões, animações, layout, cliques e todo o desenho em Canvas 2D. Não conhece React. |
-| [src/components/PomodoroPet.tsx](src/components/PomodoroPet.tsx) | Client component: loop `requestAnimationFrame`, mouse/toque/teclado, escala para HiDPI. |
-| [src/app/](src/app/) | App Router: layout e página. |
-| [tests/](tests/) | Vitest: lógica (`pet.test.ts`) e desenho com contexto 2D falso (`view.test.ts`). |
+```
+src/
+├── app/                 layout, page, global styles (design tokens, light/dark)
+├── components/          React UI: Home, Adoption, Settings, PiP view, CatCanvas…
+├── hooks/
+│   ├── usePomodoro.ts   engine + persistence + reactions + sound/notifications
+│   └── useShortcuts.ts  keyboard shortcuts across the main and PiP windows
+└── lib/
+    ├── timer.ts         pure Pomodoro engine (phases, energy, settings)
+    ├── storage.ts       versioned localStorage save, catch-up and day rollover
+    ├── browser.ts       WebAudio chiptunes, notifications, Document PiP
+    └── cat/
+        ├── config.ts    customization options and validation
+        ├── sprites.ts   pixel grids and layer composition
+        ├── palette.ts   colors per coat / eyes / accessory
+        ├── state.ts     timer → cat state → animation frame
+        └── render.ts    frame → RGBA pixels (cat, cushion, effects)
+tests/                   Vitest: engine, persistence, sprites and rendering
+```
 
-### Pixel art em canvas
+### Pixel art without images
 
-O monstrengo é desenhado numa superfície `64×64` e ampliado `2×` com `imageSmoothingEnabled = false`. Depois de desenhar, o canal alfa do sprite é "binarizado" (cada pixel fica opaco ou transparente) para manter o traço serrilhado. O canvas principal trabalha num espaço lógico de `240×168`, escalado por `devicePixelRatio` para o texto ficar nítido.
+Each part of the cat (head, ears, eyes, mouth, body poses, tails, accessories) is a small grid of palette keys:
 
-### Comportamento no navegador
+```ts
+// left half of the head; sym() mirrors it into the full 20px-wide row
+"....oooooo",
+"..ooffffff",
+".offfffpfp",   // o = outline, f = fur, p = tabby stripes
+```
 
-- **Opacidade**: o canvas fica com opacidade baixa em repouso e sobe no hover (`ALPHA_IDLE` / `ALPHA_ACTIVE`).
-- **Aba em segundo plano**: o `requestAnimationFrame` para, e ao voltar o `dt` grande "alcança" o tempo perdido — `tick()` já trata o excesso corretamente.
+A frame is a stack of layers rasterized onto a 32×32 grid, then mapped to colors. So a new coat is just a new palette, and calico patches are blobs that recolor fur pixels. `render.ts` writes the result into a 48×44 RGBA buffer together with the cushion, hearts, `zZ` and the "!" bubble. The canvas shows it at native size, and CSS scales it up with `image-rendering: pixelated`.
+
+Rendering is pure (state + time → pixels), so it is tested without a browser.
+
+### Time and persistence
+
+The engine never trusts `setInterval` to be regular: every tick advances by elapsed wall-clock time, so throttled background tabs stay accurate. On load, the saved timer is fast-forwarded by the time the app was closed, and any session that ended while you were away is waiting for you. Cycles and energy reset at local midnight, but a session that is running when the day changes is allowed to finish first.
+
+### Floating window
+
+`documentPictureInPicture.requestWindow()` opens a tiny always-on-top window. The page's stylesheets are copied into it and a React portal renders the mini view there. The cat's animation loop and an extra clock run on that window's own timers, so they stay smooth while the main tab is in the background. The button only appears in browsers that support the API.
 
 ---
 
-## Testes
+## Out of scope for now
 
-```bash
-npm test           # vitest run
-npm run typecheck  # tsc --noEmit
-```
-
-Os testes cobrem a lógica de energia e do Pomodoro, o desenho do monstrengo e os cliques no painel.
-
-## Parâmetros de ajuste
-
-| Parâmetro | Local | Padrão |
-|-----------|-------|--------|
-| `focusDuration` / `breakDuration` | `PomodoroPet` | `25*60` / `5*60` |
-| `startEnergy` / `focusCost` / `breakRestore` | `PomodoroPet` | `85` / `45` / `45` |
-| `EXHAUSTED_MAX` / `TIRED_MAX` / `OK_MAX` | `pet.ts` | `20` / `45` / `75` |
-| `SPRITE` / `SCALE` | `view.ts` | `64` / `2` |
-| `ALPHA_IDLE` / `ALPHA_ACTIVE` | `view.ts` | `120` / `240` |
-| `REVEAL_SPEED` / `REVEAL_THRESHOLD` | `view.ts` | `6.0` / `0.4` |
-| `JOY_TIME` / `ALERT_TIME` | `view.ts` | `1.8` / `1.6` |
-| `CSS_SCALE` | `PomodoroPet.tsx` | `2` |
-
-## Possíveis extensões
-
-- Janela flutuante sempre no topo com a [Document Picture-in-Picture API](https://developer.chrome.com/docs/web-platform/document-picture-in-picture) (Chrome/Edge).
-- Notificação e som ao fim de fase.
-- Persistência de energia/ciclos em `localStorage`.
-- Ciclos longos de descanso (a cada 4 focos).
+- History and statistics (streaks, sessions per day)
+- Customizable scenery
+- More coats (Siamese, …) and accessories: adding one is a palette entry plus, for new shapes, a grid
+- Sync across devices
