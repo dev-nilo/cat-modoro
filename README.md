@@ -1,4 +1,4 @@
-# Pomodoro Cat
+# Cat-modoro
 
 A Pomodoro timer with a pixel-art cat that **gets tired while you work** and **recharges when you take breaks**. Adopt your own cat, pick its coat, eyes and accessory, and look after each other.
 
@@ -8,7 +8,7 @@ Built with Next.js, React and TypeScript. No sprite images: every frame of the c
 
 ## Features
 
-- **Your cat, your way.** On the first visit you adopt a cat: 6 coats (orange tabby, black, white, gray tabby, tuxedo, calico), 4 eye colors (including odd eyes), 5 accessories and a name. You can change any of it later in Settings.
+- **Your cat, your way.** On the first visit you adopt a cat: 7 coats (orange tabby, black, white, gray tabby, tuxedo, calico, snowshoe), 4 eye colors (including odd eyes), 5 accessories and a name. You can change any of it later in Settings.
 - **A cat that reacts to your day.** It focuses in a loaf while you work, gets sleepy, then grumpy as energy drains, and naps on your breaks. If you push it all the way to empty, it turns into something else.
 - **Manual phase changes.** When a session ends, the cat waits for you. Starting a break is a conscious click, and the cat thanks you with a big stretch.
 - **Pomodoro essentials.** Configurable focus / short break / long break lengths, and a long break every N sessions.
@@ -118,7 +118,7 @@ Each part of the cat (head, ears, eyes, mouth, body poses, tails, accessories) i
 ".offfffpfp",   // o = outline, f = fur, p = tabby stripes
 ```
 
-A frame is a stack of layers rasterized onto a 32×32 grid, then mapped to colors. So a new coat is just a new palette, and calico patches are blobs that recolor fur pixels. `render.ts` writes the result into a 48×44 RGBA buffer together with the cushion, hearts, `zZ` and the "!" bubble. The canvas shows it at native size, and CSS scales it up with `image-rendering: pixelated`.
+A frame is a stack of layers rasterized onto a 32×32 grid, then mapped to colors. So a new coat is just a new palette. Calico patches are blobs that recolor fur pixels, and pointed coats like the snowshoe swap in a masked head and draw ears, legs and tail with a separate color-point key. `render.ts` writes the result into a 48×44 RGBA buffer together with the cushion, hearts, `zZ` and the "!" bubble. The canvas shows it at native size, and CSS scales it up with `image-rendering: pixelated`.
 
 Rendering is pure (state + time → pixels), so it is tested without a browser.
 
@@ -136,5 +136,5 @@ The engine never trusts `setInterval` to be regular: every tick advances by elap
 
 - History and statistics (streaks, sessions per day)
 - Customizable scenery
-- More coats (Siamese, …) and accessories: adding one is a palette entry plus, for new shapes, a grid
+- More coats and accessories: adding one is a palette entry plus, for new shapes, a grid
 - Sync across devices
