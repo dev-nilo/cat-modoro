@@ -11,6 +11,7 @@
  *   i  inner ear          n  nose / mouth      e  eye iris
  *   k  pupil              w  white highlight   b  blush
  *   r  demon eye          c/C/y  accessory colors (main / dark / detail)
+ *   P  color point (mask, ears, legs, tail of pointed coats)
  */
 
 export const CAT_SIZE = 32;
@@ -55,6 +56,27 @@ export const HEAD = sym([
   "...ooollll",
   "......oooo",
 ]);
+
+/** HEAD for pointed coats: a dark mask around the eyes, split by the white muzzle's inverted V. */
+export const POINTED_HEAD = sym([
+  "....oooooo",
+  "..ooffffff",
+  ".offffPPPP",
+  ".offPPPPPP",
+  "offPPPPPPP",
+  "ofPPPPPPPP",
+  "opPPPPPPPP",
+  "opPPPPPPPP",
+  "ofPPPPPlll",
+  "offPPlllll",
+  ".offllllll",
+  "..ofllllll",
+  "...ooollll",
+  "......oooo",
+]);
+
+/** Recolors fur and stripes as color points (for ears, legs and tails of pointed coats). */
+const toPoints = (rows: readonly string[]) => rows.map((row) => row.replace(/[fp]/g, "P"));
 
 export type Ears = "up" | "droop" | "back";
 
@@ -364,27 +386,31 @@ export interface CatFrame {
 
 const HEAD_Y: Record<Pose, number> = { sit: 4, loaf: 9, sleep: 11, stretch: 13 };
 
-/** Builds the ordered layer stack (back to front) for one frame. */
-export function buildLayers(frame: CatFrame, accessory: AccessoryShape | "none"): Layer[] {
+/**
+ * Builds the ordered layer stack (back to front) for one frame. `pointed`
+ * draws the face mask, ears, legs and tail with the color-point key.
+ */
+export function buildLayers(frame: CatFrame, accessory: AccessoryShape | "none", pointed = false): Layer[] {
   const layers: Layer[] = [];
   const headY = HEAD_Y[frame.pose] + frame.headBob;
   const head = (rows: readonly string[], dy: number): Layer => ({ rows, x: HEAD_X, y: headY + dy });
+  const points = (layer: Layer): Layer => (pointed ? { ...layer, rows: toPoints(layer.rows) } : layer);
   const tail = tailLayer(frame.tail, frame.swish);
 
   if (frame.pose === "sit") {
-    if (tail) layers.push(tail);
+    if (tail) layers.push(points(tail));
     layers.push(SIT_BODY);
   } else if (frame.pose === "stretch") {
-    if (tail) layers.push(tail);
-    layers.push(STRETCH_HUMP, STRETCH_LEGS);
+    if (tail) layers.push(points(tail));
+    layers.push(STRETCH_HUMP, points(STRETCH_LEGS));
   } else {
     layers.push(LOAF_BODY);
-    if (tail) layers.push(tail);
+    if (tail) layers.push(points(tail));
   }
 
   const ears = EARS[frame.ears];
-  layers.push(head(ears.rows, ears.dy));
-  layers.push(head(HEAD, 0));
+  layers.push(points(head(ears.rows, ears.dy)));
+  layers.push(head(pointed ? POINTED_HEAD : HEAD, 0));
 
   const eyes = EYES[frame.eyes];
   layers.push(head(eyes.rows, eyes.dy));
@@ -418,6 +444,7 @@ export function rasterize(layers: readonly Layer[], size = CAT_SIZE): string[][]
 /** Every static grid, for validation in tests. */
 export const ALL_GRIDS: Record<string, readonly string[]> = {
   head: HEAD,
+  pointedHead: POINTED_HEAD,
   sitBody: SIT_BODY.rows,
   loafBody: LOAF_BODY.rows,
   stretchHump: STRETCH_HUMP.rows,

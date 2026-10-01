@@ -50,7 +50,7 @@ export default function CatCustomizer({ value, onChange }: Props) {
                   style={{
                     background: patch
                       ? `conic-gradient(${patch} 0 33%, ${c.fur} 0 66%, ${second} 0)`
-                      : `linear-gradient(135deg, ${c.fur} 0 55%, ${c.pattern === c.fur ? c.light : c.pattern} 55%)`,
+                      : `linear-gradient(135deg, ${c.fur} 0 55%, ${c.points ?? (c.pattern === c.fur ? c.light : c.pattern)} 55%)`,
                     borderColor: c.outline,
                   }}
                 />

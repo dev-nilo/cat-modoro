@@ -7,6 +7,7 @@ export const COATS = [
   { id: "gray", label: "Gray tabby" },
   { id: "tuxedo", label: "Tuxedo" },
   { id: "calico", label: "Calico" },
+  { id: "snowshoe", label: "Snowshoe" },
 ] as const;
 
 export const EYES = [

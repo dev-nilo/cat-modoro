@@ -107,6 +107,8 @@ function colorFor(key: string, x: number, y: number, cat: CatConfig): string | n
       return coat.light;
     case "i":
       return coat.innerEar;
+    case "P":
+      return coat.points ?? coat.fur;
     case "n":
       return SHARED.nose;
     case "e":
@@ -146,7 +148,7 @@ export function renderStage(input: StageInput): Uint8ClampedArray {
 
   // Cat
   const frame = catFrame(state, t, still, sinceStretch);
-  const grid = rasterize(buildLayers(frame, cat.accessory));
+  const grid = rasterize(buildLayers(frame, cat.accessory, !!COAT_COLORS[cat.coat].points));
   for (let y = 0; y < CAT_SIZE; y++) {
     for (let x = 0; x < CAT_SIZE; x++) {
       const color = colorFor(grid[y][x], x, y, cat);

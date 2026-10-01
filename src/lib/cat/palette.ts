@@ -15,6 +15,8 @@ export interface Coat {
   pattern: string;
   light: string;
   innerEar: string;
+  /** Color of the mask, ears, legs and tail; set only for pointed coats. */
+  points?: string;
   /** Calico-style blobs recoloring fur pixels: [x, y, radius, color] in cat coordinates. */
   patches?: readonly [number, number, number, string][];
 }
@@ -37,6 +39,14 @@ export const COAT_COLORS: Record<CoatId, Coat> = {
       [8, 25, 3.2, "#e58b3a"],
       [21, 9, 2.6, "#3d3438"],
     ],
+  },
+  snowshoe: {
+    outline: "#3b2a24",
+    fur: "#eee2cc",
+    pattern: "#eee2cc",
+    light: "#ffffff",
+    innerEar: "#e9a3a8",
+    points: "#6b5040",
   },
 };
 

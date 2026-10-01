@@ -6,7 +6,7 @@ import { ALL_GRIDS, buildLayers, CAT_SIZE, rasterize } from "@/lib/cat/sprites";
 import { catFrame, catState, STATE_CAPTIONS, type CatState } from "@/lib/cat/state";
 import { initialState, DEFAULT_SETTINGS, type TimerState } from "@/lib/timer";
 
-const KEYS = new Set([..."ofplinekwbrcCy."]);
+const KEYS = new Set([..."ofplinekwbrcCyP."]);
 const STATES = Object.keys(STATE_CAPTIONS) as CatState[];
 
 const base = initialState(DEFAULT_SETTINGS);
