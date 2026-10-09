@@ -5,6 +5,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { meow, notify, purr, requestNotifications, unlockAudio } from "@/lib/browser";
 import type { CatConfig } from "@/lib/cat/config";
 import { catState, PET_TIME, STRETCH_TIME, type CatState } from "@/lib/cat/state";
+import {
+  clientId,
+  emptyHistory,
+  finish,
+  flushOutbox,
+  loadHistory,
+  observe,
+  writeHistory,
+  type HistoryState,
+  type NewSession,
+} from "@/lib/history";
 import { dayKey, loadSave, restoreTimer, rollDay, writeSave, type Prefs } from "@/lib/storage";
 import {
   BREAK_DONE,
@@ -63,6 +74,9 @@ export function usePomodoro(): Pomodoro | null {
   const [stretchAt, setStretchAt] = useState(-Infinity);
   const [now, setNow] = useState(0);
 
+  const history = useRef<HistoryState>(emptyHistory());
+  const flushing = useRef(false);
+
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
   const catRef = useRef(cat);
@@ -74,11 +88,60 @@ export function usePomodoro(): Pomodoro | null {
     setNow(Date.now());
   }, []);
 
+  // History: POST finished phases in the background; whatever fails stays queued.
+  const flush = useCallback(async () => {
+    if (flushing.current || history.current.outbox.length === 0) return;
+    flushing.current = true;
+    try {
+      const sent = history.current.outbox;
+      const left = new Set((await flushOutbox(sent, clientId())).map((r) => r.id));
+      const done = new Set(sent.filter((r) => !left.has(r.id)).map((r) => r.id));
+      // Records queued while we were sending are kept.
+      history.current = { ...history.current, outbox: history.current.outbox.filter((r) => !done.has(r.id)) };
+      writeHistory(history.current);
+    } finally {
+      flushing.current = false;
+    }
+  }, []);
+
+  /** Notes when a phase starts and, when one ends, queues its record. */
+  const track = useCallback(
+    (t: PomodoroTimer, at: number, end?: { outcome: NewSession["outcome"]; endedAt: number }) => {
+      let h = history.current;
+      if (end) {
+        const phaseEnd = { phase: t.phase, outcome: end.outcome, endedAt: end.endedAt, plannedSeconds: t.duration };
+        h = finish(h, phaseEnd, crypto.randomUUID());
+      }
+      h = observe(h, t.snapshot(), !t.running && !t.awaiting && t.progress === 0, at);
+      if (h !== history.current) {
+        history.current = h;
+        writeHistory(h);
+      }
+      if (end) void flush();
+    },
+    [flush],
+  );
+
+  useEffect(() => {
+    const online = () => void flush();
+    window.addEventListener("online", online);
+    return () => window.removeEventListener("online", online);
+  }, [flush]);
+
   // Load once on the client.
   useEffect(() => {
     const at = Date.now();
     const saved = loadSave(at);
     const restored = restoreTimer(saved, at);
+    history.current = loadHistory();
+    // A phase that ran out while the app was closed ended when its time did.
+    const endedAway = restored.missed.some((e) => e === FOCUS_DONE || e === BREAK_DONE) && saved.timer;
+    track(
+      restored.timer,
+      at,
+      endedAway ? { outcome: "completed", endedAt: saved.savedAt + saved.timer!.remaining * 1000 } : undefined,
+    );
+    if (!endedAway) void flush();
     engine.current = restored.timer;
     day.current = restored.day;
     lastTick.current = at;
@@ -88,7 +151,7 @@ export function usePomodoro(): Pomodoro | null {
     setTimer(restored.timer.snapshot());
     setNow(at);
     setLoaded(true);
-  }, []);
+  }, [flush, track]); // both stable: runs once
 
   const onPhaseEnd = useCallback((events: TimerEvent[]) => {
     const done = events.find((e) => e === FOCUS_DONE || e === BREAK_DONE);
@@ -111,9 +174,11 @@ export function usePomodoro(): Pomodoro | null {
     const events = t.tick((at - lastTick.current) / 1000);
     lastTick.current = at;
     day.current = rollDay(t, day.current, at);
+    const ended = events.some((e) => e === FOCUS_DONE || e === BREAK_DONE);
+    track(t, at, ended ? { outcome: "completed", endedAt: at } : undefined);
     onPhaseEnd(events);
     sync();
-  }, [onPhaseEnd, sync]);
+  }, [onPhaseEnd, sync, track]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -152,20 +217,23 @@ export function usePomodoro(): Pomodoro | null {
     const event = engine.current!.toggle();
     if (event === BREAK_STARTED) setStretchAt(Date.now());
     lastTick.current = Date.now();
+    track(engine.current!, Date.now());
     sync();
-  }, [sync]);
+  }, [sync, track]);
 
   const skip = useCallback(() => {
     engine.current!.skip();
+    track(engine.current!, Date.now(), { outcome: "skipped", endedAt: Date.now() });
     sync();
-  }, [sync]);
+  }, [sync, track]);
 
   const reset = useCallback(() => {
     engine.current!.reset();
     day.current = dayKey(Date.now());
+    track(engine.current!, Date.now());
     setStretchAt(-Infinity);
     sync();
-  }, [sync]);
+  }, [sync, track]);
 
   const pet = useCallback(() => {
     unlockAudio();

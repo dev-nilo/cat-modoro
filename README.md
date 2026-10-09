@@ -14,6 +14,7 @@ Built with Next.js, React and TypeScript. No sprite images: every frame of the c
 - **Pomodoro essentials.** Configurable focus / short break / long break lengths, and a long break every N sessions.
 - **Floating mode.** "Pop out" opens an always-on-top mini window through Document Picture-in-Picture, so the cat can sit on top of your work (Chrome and Edge).
 - **It remembers.** Everything is saved in `localStorage`. The timer keeps running while the tab is closed, and each day starts fresh at midnight.
+- **History.** Every finished (or skipped) phase is sent to a small REST API in the background, so past days live on in Settings → History, even offline-first.
 - **Heads-up.** An 8-bit meow plays when a session ends. Browser notifications are opt-in.
 - **Accessible and calm.** Keyboard shortcuts, real HTML controls, light and dark themes that follow the system, and `prefers-reduced-motion` support.
 
@@ -21,12 +22,14 @@ Built with Next.js, React and TypeScript. No sprite images: every frame of the c
 
 ```bash
 npm install
-npm run dev       # http://localhost:3000
-npm test          # Vitest
-npm run build     # static production build (deploys as-is to Vercel or any static host)
+vercel link && vercel env pull   # DATABASE_URL & co. from the Neon integration
+npm run db:migrate               # apply drizzle/ migrations (direct connection)
+npm run dev                      # http://localhost:3000 · API docs at /docs
+npm test                         # Vitest (the API tests use an in-memory Postgres, no setup needed)
+npm run build
 ```
 
-Requires Node 20+.
+Requires Node 20+. Without a database the timer still works; only the History tab can't load.
 
 ## Controls
 
@@ -85,26 +88,82 @@ The cat starts the day at 85.
 
 ---
 
+## API
+
+`/api/v1/sessions` keeps the history of finished phases in Postgres. Interactive docs: [`/docs`](https://cat-modoro.vercel.app/docs) · contract: [`/api/v1/openapi.json`](https://cat-modoro.vercel.app/api/v1/openapi.json).
+
+| Method | Path | Success | Errors |
+|---|---|---|---|
+| `POST` | `/api/v1/sessions` | `201` + `Location` (`200` for an identical retry) | `400`, `404`, `409` |
+| `GET` | `/api/v1/sessions?page=0&size=20&from&to` | `200`, newest first | `400` |
+| `GET` | `/api/v1/sessions/{id}` | `200` | `404` |
+| `DELETE` | `/api/v1/sessions/{id}` | `204` | `404` |
+
+```http
+POST /api/v1/sessions
+X-Client-Id: 3f1c…
+Content-Type: application/json
+
+{ "id": "c8b2…", "kind": "focus", "outcome": "completed",
+  "startedAt": "2026-10-09T13:00:00Z", "endedAt": "2026-10-09T13:25:00Z", "plannedSeconds": 1500 }
+
+HTTP/1.1 201 Created
+Location: /api/v1/sessions/c8b2…
+```
+
+### Six REST decisions, and where they live
+
+| Avoid | Prefer | Here |
+|---|---|---|
+| `/getSession?id=42` | `GET /sessions/42` | Resource URLs and HTTP verbs only: [`app/api/v1/sessions`](src/app/api/v1/sessions) |
+| `200` with `"error"` in the body | `404` + Problem Details | RFC 9457 `application/problem+json` with a fixed catalog of types ([`problem.ts`](src/server/http/problem.ts)). Validation errors list every bad field. |
+| `GET /sessions` with no limit | `?page=0&size=20` | Spring-style envelope `{ content, page: { number, size, totalElements, totalPages } }`; `size` is capped at 100 |
+| `POST` that only returns `200` | `201` + `Location` | Plus idempotency: the client generates the id, so a retry returns `200` with the stored copy and a reused id with different data is a `409` |
+| Unversioned URL | `/v1/...` | `/api/v1/` |
+| Contract only in the code | OpenAPI | The Zod schemas that validate requests also generate the OpenAPI 3.1 document ([`openapi.ts`](src/server/openapi.ts)), and a test fails if a route isn't documented |
+
+### Identity and privacy
+
+There are no accounts. Each browser generates an anonymous UUID and sends it as `X-Client-Id`; every query is scoped to it, and another client's session answers `404` (not `403`), so ids can't be probed. The flip side: **anyone who has that UUID can read and delete that history**. That's an acceptable trade-off for Pomodoro timestamps, not for anything sensitive. Rate limiting is left to the Vercel Firewall.
+
+### Local-first sync
+
+The timer never waits on the network. When a phase ends, `lib/history.ts` puts a record in an outbox in `localStorage` and POSTs it in the background (again on load and when the browser comes back `online`). A network error, `429` or `5xx` keeps it queued; a `4xx` that will never succeed drops it. Because the id is generated on the client, re-sending after a lost response can't create duplicates.
+
+### Tests
+
+`tests/api.test.ts` calls the real route handlers with `Request` objects against [PGlite](https://pglite.dev) (Postgres compiled to WASM) after applying the real migrations, so SQL, constraints and `ON CONFLICT` behave as in production, with no Docker.
+
+---
+
 ## Architecture
 
 ```
 src/
 ├── app/                 layout, page, global styles (design tokens, light/dark)
+│   ├── api/v1/          route handlers: sessions, sessions/[id], openapi.json
+│   └── docs/            Scalar API reference
 ├── components/          React UI: Home, Adoption, Settings, PiP view, CatCanvas…
 ├── hooks/
 │   ├── usePomodoro.ts   engine + persistence + reactions + sound/notifications
 │   └── useShortcuts.ts  keyboard shortcuts across the main and PiP windows
-└── lib/
-    ├── timer.ts         pure Pomodoro engine (phases, energy, settings)
-    ├── storage.ts       versioned localStorage save, catch-up and day rollover
-    ├── browser.ts       WebAudio chiptunes, notifications, Document PiP
-    └── cat/
-        ├── config.ts    customization options and validation
-        ├── sprites.ts   pixel grids and layer composition
-        ├── palette.ts   colors per coat / eyes / accessory
-        ├── state.ts     timer → cat state → animation frame
-        └── render.ts    frame → RGBA pixels (cat, cushion, effects)
-tests/                   Vitest: engine, persistence, sprites and rendering
+├── lib/
+│   ├── timer.ts         pure Pomodoro engine (phases, energy, settings)
+│   ├── storage.ts       versioned localStorage save, catch-up and day rollover
+│   ├── browser.ts       WebAudio chiptunes, notifications, Document PiP
+│   ├── history.ts       phase tracking, outbox and API client (local-first)
+│   └── cat/
+│       ├── config.ts    customization options and validation
+│       ├── sprites.ts   pixel grids and layer composition
+│       ├── palette.ts   colors per coat / eyes / accessory
+│       ├── state.ts     timer → cat state → animation frame
+│       └── render.ts    frame → RGBA pixels (cat, cushion, effects)
+└── server/
+    ├── db/              Drizzle schema + lazy pg pool (migrations in /drizzle)
+    ├── http/problem.ts  RFC 9457 Problem Details + error wrapper
+    ├── sessions/        Zod schemas, repository, HTTP handlers
+    └── openapi.ts       OpenAPI 3.1 document built from the Zod schemas
+tests/                   Vitest: engine, persistence, sprites, rendering, API, OpenAPI, history
 ```
 
 ### Pixel art without images
@@ -134,7 +193,8 @@ The engine never trusts `setInterval` to be regular: every tick advances by elap
 
 ## Out of scope for now
 
-- History and statistics (streaks, sessions per day)
+- Statistics endpoint and charts (streaks, weekly totals)
+- Real accounts
 - Customizable scenery
 - More coats and accessories: adding one is a palette entry plus, for new shapes, a grid
 - Sync across devices

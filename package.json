@@ -9,17 +9,28 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "dotenv -e .env.local -- drizzle-kit migrate"
   },
   "dependencies": {
+    "@vercel/functions": "^3.9.11",
+    "drizzle-orm": "^0.45.4",
     "next": "^16.3.8",
+    "pg": "^8.23.1",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@readme/openapi-parser": "^9.1.0",
     "@types/node": "^26.6.3",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "dotenv-cli": "^11.0.0",
+    "drizzle-kit": "^0.31.11",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }

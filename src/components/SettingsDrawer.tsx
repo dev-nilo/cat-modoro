@@ -10,8 +10,11 @@ import { SETTING_LIMITS, type TimerSettings } from "@/lib/timer";
 import CatCanvas from "./CatCanvas";
 import CatCustomizer from "./CatCustomizer";
 import Dialog from "./Dialog";
+import HistoryTab from "./HistoryTab";
 
-type Tab = "cat" | "timer";
+type Tab = "cat" | "timer" | "history";
+
+const TAB_LABELS: Record<Tab, string> = { cat: "Cat", timer: "Timer", history: "History" };
 
 const FIELDS: { key: keyof TimerSettings; label: string; unit: string }[] = [
   { key: "focusMinutes", label: "Focus", unit: "min" },
@@ -26,7 +29,7 @@ export default function SettingsDrawer({ open, onClose, pomo }: { open: boolean;
   return (
     <Dialog open={open} onClose={onClose} title="Settings" variant="drawer">
       <div className="tabs" role="tablist">
-        {(["cat", "timer"] as const).map((t) => (
+        {(["cat", "timer", "history"] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -35,11 +38,13 @@ export default function SettingsDrawer({ open, onClose, pomo }: { open: boolean;
             className={`tab ${tab === t ? "tab-active" : ""}`}
             onClick={() => setTab(t)}
           >
-            {t === "cat" ? "Cat" : "Timer"}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
-      {tab === "cat" ? <CatTab pomo={pomo} /> : <TimerTab pomo={pomo} />}
+      {tab === "cat" && <CatTab pomo={pomo} />}
+      {tab === "timer" && <TimerTab pomo={pomo} />}
+      {tab === "history" && <HistoryTab />}
     </Dialog>
   );
 }

@@ -747,7 +747,7 @@ kbd {
 
 .tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   padding: 4px;
   border: 2px solid var(--border);
@@ -789,6 +789,98 @@ kbd {
 }
 
 .hint-warn {
+  color: var(--danger);
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* History tab */
+.history-day {
+  display: grid;
+  gap: 6px;
+}
+
+.history-day-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.history-day-total {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.history-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  border: 2px solid var(--border);
+  border-left: 6px solid var(--focus);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 0.9rem;
+}
+
+.history-short_break {
+  border-left-color: var(--break);
+}
+
+.history-long_break {
+  border-left-color: var(--long);
+}
+
+.history-kind {
+  font-weight: 700;
+}
+
+.history-time,
+.history-length {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.history-skipped {
+  font-style: italic;
+}
+
+.history-delete {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.history-delete:hover,
+.history-delete:focus-visible {
+  background: var(--surface);
   color: var(--danger);
 }
 
